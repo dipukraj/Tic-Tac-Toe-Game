@@ -169,7 +169,17 @@
 </head>
 
 <body class="bg-gradient-to-br from-blue-100 to-purple-100 min-h-screen flex flex-col items-center justify-center p-4">
-  <h1 class="text-4xl font-bold text-gray-800 mb-8">Tic Tac Toe</h1>
+  <h1 class="text-4xl font-bold text-gray-800 mb-4">Tic Tac Toe</h1>
+
+  <!-- Game mode selector -->
+  <div class="mb-6 flex flex-col items-center gap-2">
+    <label for="mode-select" class="text-sm font-medium text-gray-700">Choose Mode</label>
+    <select id="mode-select"
+      class="px-3 py-2 rounded-lg border border-gray-300 bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+      <option value="two">Two Players (X vs O)</option>
+      <option value="single">Single Player vs Computer</option>
+    </select>
+  </div>
 
   <div class="board" id="board">
     <div class="cell" data-index="0"></div>
@@ -248,10 +258,15 @@
     const cells = Array.from(document.querySelectorAll('.cell'));
     const status = document.getElementById('status');
     const resetBtn = document.getElementById('reset-btn');
+    const modeSelect = document.getElementById('mode-select');
 
     let currentPlayer = 'X';
     let gameBoard = Array(9).fill(null);
     let isGameActive = true;
+    let gameMode = modeSelect ? modeSelect.value : 'two'; // 'two' | 'single'
+
+    const humanPlayer = 'X';
+    const aiPlayer = 'O';
 
     // 🎵 Sound effects - Using Web Audio API for better compatibility
     function playBeep(frequency = 800, duration = 200) {
@@ -290,19 +305,20 @@
       [0, 4, 8], [2, 4, 6] // diagonals
     ];
 
-    function handleCellClick(event) {
-      const index = event.target.getAttribute('data-index');
-      if (gameBoard[index] || !isGameActive) return;
-
-      gameBoard[index] = currentPlayer;
-      event.target.classList.add(currentPlayer.toLowerCase() + '-mark');
+    // Common move handler for both human and AI
+    function applyMove(index, player) {
+      gameBoard[index] = player;
+      cells[index].classList.add(player.toLowerCase() + '-mark');
 
       // 🔊 Play move sound
       playBeep(600, 150);
 
-      if (checkWinner()) {
-        status.textContent = `Player ${currentPlayer} Wins!`;
-        highlightWinner(checkWinner());
+      const winningLine = checkWinner();
+      if (winningLine) {
+        status.textContent = gameMode === 'single'
+          ? (player === humanPlayer ? 'You Win! 🎉' : 'Computer Wins! 🤖')
+          : `Player ${player} Wins!`;
+        highlightWinner(winningLine);
         isGameActive = false;
 
         // 🔊 Play win sound
@@ -318,9 +334,31 @@
         playTieSound();
         return;
       }
+    }
 
-      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-      status.textContent = `Player ${currentPlayer}'s Turn`;
+    function handleCellClick(event) {
+      const index = event.target.getAttribute('data-index');
+      if (!isGameActive || gameBoard[index]) return;
+
+      // In single-player mode, ignore clicks during AI's turn
+      if (gameMode === 'single' && currentPlayer !== humanPlayer) return;
+
+      applyMove(index, currentPlayer);
+      if (!isGameActive) return;
+
+      if (gameMode === 'two') {
+        // Normal two-player toggle
+        currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+        status.textContent = `Player ${currentPlayer}'s Turn`;
+      } else {
+        // Single-player: after human move, AI plays
+        currentPlayer = aiPlayer;
+        status.textContent = `Computer's Turn (${aiPlayer})`;
+
+        setTimeout(() => {
+          aiMakeMove();
+        }, 400);
+      }
     }
 
     function checkWinner() {
@@ -340,11 +378,65 @@
       });
     }
 
+    // Smart-ish AI: try to win, then block, then center, then corners, then sides
+    function aiMakeMove() {
+      if (!isGameActive) return;
+
+      const bestIndex = getBestMove();
+      if (bestIndex === null || gameBoard[bestIndex] !== null) return;
+
+      applyMove(bestIndex, aiPlayer);
+      if (!isGameActive) return;
+
+      // Switch back to human
+      currentPlayer = humanPlayer;
+      status.textContent = `Your Turn (${humanPlayer})`;
+    }
+
+    function getBestMove() {
+      const emptyIndices = gameBoard
+        .map((value, index) => (value === null ? index : null))
+        .filter(index => index !== null);
+
+      if (emptyIndices.length === 0) return null;
+
+      // 1. Can AI win in the next move?
+      for (let idx of emptyIndices) {
+        gameBoard[idx] = aiPlayer;
+        const win = checkWinner();
+        gameBoard[idx] = null;
+        if (win) return idx;
+      }
+
+      // 2. Can human win in the next move? Block them.
+      for (let idx of emptyIndices) {
+        gameBoard[idx] = humanPlayer;
+        const win = checkWinner();
+        gameBoard[idx] = null;
+        if (win) return idx;
+      }
+
+      // 3. Take center if available
+      if (gameBoard[4] === null) return 4;
+
+      // 4. Take a corner
+      const corners = [0, 2, 6, 8].filter(i => gameBoard[i] === null);
+      if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)];
+
+      // 5. Take a side
+      const sides = [1, 3, 5, 7].filter(i => gameBoard[i] === null);
+      if (sides.length > 0) return sides[Math.floor(Math.random() * sides.length)];
+
+      return emptyIndices[0] ?? null;
+    }
+
     function resetGame() {
       gameBoard.fill(null);
-      currentPlayer = 'X';
+      currentPlayer = humanPlayer;
       isGameActive = true;
-      status.textContent = "Player X's Turn";
+      status.textContent = gameMode === 'single'
+        ? `Your Turn (${humanPlayer})`
+        : "Player X's Turn";
       cells.forEach((cell, index) => {
         cell.className = 'cell';
         cell.setAttribute('data-index', index);
@@ -356,6 +448,13 @@
     });
 
     resetBtn.addEventListener('click', resetGame);
+
+    if (modeSelect) {
+      modeSelect.addEventListener('change', () => {
+        gameMode = modeSelect.value;
+        resetGame();
+      });
+    }
   </script>
 </body>
 
