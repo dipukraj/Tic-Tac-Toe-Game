@@ -165,6 +165,92 @@
       height: 20px;
       fill: currentColor;
     }
+
+    /* Winner glitter banner */
+    .win-banner {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem 1.5rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #fff;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(120deg, #fbbf24, #ec4899, #8b5cf6);
+      background-size: 200% 200%;
+      animation: glitter-move 2s ease-in-out infinite, glow-soft 1.4s ease-in-out infinite;
+    }
+
+    .win-banner::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.45) 0, transparent 45%),
+        radial-gradient(circle at 80% 0%, rgba(255, 255, 255, 0.3) 0, transparent 40%),
+        radial-gradient(circle at 0% 80%, rgba(255, 255, 255, 0.3) 0, transparent 40%);
+      mix-blend-mode: screen;
+      opacity: 0.7;
+      pointer-events: none;
+      animation: sparkle 2.2s linear infinite;
+    }
+
+    .win-banner-x {
+      background-image: linear-gradient(120deg, #fb923c, #ef4444, #f97316);
+    }
+
+    .win-banner-o {
+      background-image: linear-gradient(120deg, #38bdf8, #6366f1, #22c55e);
+    }
+
+    @keyframes glitter-move {
+      0% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+
+    @keyframes glow-soft {
+      0%,
+      100% {
+        transform: translateY(0) scale(1);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+      }
+
+      50% {
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 18px 35px rgba(0, 0, 0, 0.25);
+      }
+    }
+
+    @keyframes sparkle {
+      0% {
+        transform: translate3d(0, 0, 0) rotate(0deg);
+        opacity: 0.9;
+      }
+
+      50% {
+        transform: translate3d(8px, -6px, 0) rotate(8deg);
+        opacity: 0.5;
+      }
+
+      100% {
+        transform: translate3d(0, 0, 0) rotate(0deg);
+        opacity: 0.9;
+      }
+    }
   </style>
 </head>
 
@@ -195,10 +281,39 @@
 
   <div class="mt-6 text-center">
     <p class="text-2xl font-semibold" id="status">Player X's Turn</p>
+    <!-- Glitter winner banner -->
+    <div id="win-banner-container" class="mt-3 hidden">
+      <div id="win-banner" class="win-banner">
+        <span id="win-banner-text">Player X Wins!</span>
+      </div>
+    </div>
   </div>
 
-  <div class="mt-6 flex justify-center w-full max-w-md">
+  <div class="mt-6 flex flex-col items-center w-full max-w-md gap-4">
     <button id="reset-btn">Reset Game</button>
+
+    <!-- Scoreboard -->
+    <div id="scoreboard"
+      class="w-full rounded-xl bg-white/70 shadow-md border border-purple-100 px-4 py-3 text-sm text-gray-800">
+      <h2 class="font-semibold text-base text-purple-700 mb-2 text-center">Score Board</h2>
+      <div class="flex flex-col sm:flex-row justify-between gap-2">
+        <div class="flex-1 text-center">
+          <p class="font-medium">Player X</p>
+          <p class="text-xs text-gray-500">(You in Single Player)</p>
+          <p class="mt-1 text-lg font-semibold text-emerald-600" id="score-x">0</p>
+        </div>
+        <div class="flex-1 text-center">
+          <p class="font-medium">Player O</p>
+          <p class="text-xs text-gray-500">(Friend / Computer)</p>
+          <p class="mt-1 text-lg font-semibold text-blue-600" id="score-o">0</p>
+        </div>
+        <div class="flex-1 text-center">
+          <p class="font-medium">Tie</p>
+          <p class="text-xs text-gray-500">(Draw)</p>
+          <p class="mt-1 text-lg font-semibold text-amber-600" id="score-tie">0</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Footer -->
@@ -259,6 +374,12 @@
     const status = document.getElementById('status');
     const resetBtn = document.getElementById('reset-btn');
     const modeSelect = document.getElementById('mode-select');
+    const scoreXEl = document.getElementById('score-x');
+    const scoreOEl = document.getElementById('score-o');
+    const scoreTieEl = document.getElementById('score-tie');
+    const winBannerContainer = document.getElementById('win-banner-container');
+    const winBanner = document.getElementById('win-banner');
+    const winBannerText = document.getElementById('win-banner-text');
 
     let currentPlayer = 'X';
     let gameBoard = Array(9).fill(null);
@@ -267,6 +388,35 @@
 
     const humanPlayer = 'X';
     const aiPlayer = 'O';
+
+    const score = {
+      X: 0,
+      O: 0,
+      tie: 0
+    };
+
+    function updateScoreboard() {
+      if (scoreXEl) scoreXEl.textContent = score.X;
+      if (scoreOEl) scoreOEl.textContent = score.O;
+      if (scoreTieEl) scoreTieEl.textContent = score.tie;
+    }
+
+    function showWinBanner(message, winnerSymbol) {
+      if (!winBannerContainer || !winBanner || !winBannerText) return;
+      winBannerText.textContent = message;
+      winBanner.classList.remove('win-banner-x', 'win-banner-o');
+      if (winnerSymbol === 'X') {
+        winBanner.classList.add('win-banner-x');
+      } else if (winnerSymbol === 'O') {
+        winBanner.classList.add('win-banner-o');
+      }
+      winBannerContainer.classList.remove('hidden');
+    }
+
+    function hideWinBanner() {
+      if (!winBannerContainer) return;
+      winBannerContainer.classList.add('hidden');
+    }
 
     // Reuse a single AudioContext to avoid browser limits and sound glitches
     let audioContext = null;
@@ -334,9 +484,24 @@
 
       const winningLine = checkWinner();
       if (winningLine) {
-        status.textContent = gameMode === 'single'
+        // Update scores based on mode and who won
+        if (gameMode === 'single') {
+          if (player === humanPlayer) {
+            score.X += 1;
+          } else {
+            score.O += 1;
+          }
+        } else {
+          score[player] += 1;
+        }
+        updateScoreboard();
+
+        const winnerMessage = gameMode === 'single'
           ? (player === humanPlayer ? 'You Win! 🎉' : 'Computer Wins! 🤖')
           : `Player ${player} Wins!`;
+
+        status.textContent = winnerMessage;
+        showWinBanner(winnerMessage, player);
         highlightWinner(winningLine);
         isGameActive = false;
 
@@ -348,6 +513,13 @@
       if (gameBoard.every(cell => cell !== null)) {
         status.textContent = 'It\'s a Tie!';
         isGameActive = false;
+
+        // Update tie score
+        score.tie += 1;
+        updateScoreboard();
+
+        // Hide any previous win banner on tie
+        hideWinBanner();
 
         // 🔊 Play tie sound
         playTieSound();
@@ -456,6 +628,7 @@
       status.textContent = gameMode === 'single'
         ? `Your Turn (${humanPlayer})`
         : "Player X's Turn";
+      hideWinBanner();
       cells.forEach((cell, index) => {
         cell.className = 'cell';
         cell.setAttribute('data-index', index);
